@@ -19,26 +19,37 @@ const products = [
 ];
 
 export default function ProductPage() {
-  const [stocks, setStocks] = useState(
-    () => JSON.parse(localStorage.getItem("stocks") || "{}") || {}
-  );
-  const [history, setHistory] = useState(
-    () => JSON.parse(localStorage.getItem("history") || "[]") || []
-  );
+  const [stocks, setStocks] = useState<{ [key: number]: typeof initialStock }>({});
+  const [history, setHistory] = useState<
+    { id: number; productId: number; quantity: number; type: string; note: string; action: string; timestamp: string }[]
+  >([]);
   const [inputValues, setInputValues] = useState<{ [key: number]: string }>({});
-  const [selectedOptions, setSelectedOptions] = useState<{ [key: number]: string }>({});
+  const [selectedOptions, setSelectedOptions] = useState<{ [key: number]: keyof typeof initialStock }>({});
   const [notes, setNotes] = useState<{ [key: number]: string }>({});
   const [error, setError] = useState<{ [key: number]: string }>({});
 
+  // Load data from localStorage once the component mounts
   useEffect(() => {
-    localStorage.setItem("stocks", JSON.stringify(stocks));
-    localStorage.setItem("history", JSON.stringify(history));
+    if (typeof window !== "undefined") {
+      const storedStocks = JSON.parse(localStorage.getItem("stocks") || "{}");
+      const storedHistory = JSON.parse(localStorage.getItem("history") || "[]");
+      setStocks(storedStocks);
+      setHistory(storedHistory);
+    }
+  }, []);
+
+  // Update localStorage whenever stocks or history change
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("stocks", JSON.stringify(stocks));
+      localStorage.setItem("history", JSON.stringify(history));
+    }
   }, [stocks, history]);
 
   const handleStockChange = (productId: number, action: string) => {
     const quantity = Number(inputValues[productId]) || 0;
     if (quantity <= 0) return;
-    const type = selectedOptions[productId] || "bags";
+    const type = (selectedOptions[productId] || "bags") as keyof typeof initialStock;
 
     setStocks((prevStocks) => {
       const newStocks = { ...prevStocks };
@@ -60,7 +71,7 @@ export default function ProductPage() {
       return newStocks;
     });
 
-    setHistory((prevHistory: { id: number; productId: number; quantity: number; type: string; note: string; action: string; timestamp: string }[]) => [
+    setHistory((prevHistory) => [
       { id: prevHistory.length + 1, productId, quantity, type, note: notes[productId] || "", action, timestamp: new Date().toLocaleString() },
       ...prevHistory,
     ]);
@@ -88,7 +99,7 @@ export default function ProductPage() {
               />
               <select
                 value={selectedOptions[id] || "bags"}
-                onChange={(e) => setSelectedOptions({ ...selectedOptions, [id]: e.target.value })}
+                onChange={(e) => setSelectedOptions({ ...selectedOptions, [id]: e.target.value as keyof typeof initialStock })}
                 className="w-full p-2 mt-2 bg-gray-700 text-white rounded-md"
               >
                 <option value="bags">Bags</option>
@@ -128,7 +139,7 @@ export default function ProductPage() {
               <ul>
                 {stocks[id] ? (
                   Object.entries(stocks[id]).map(([type, qty]) => (
-                    <li key={type}>{type}: {qty}</li>
+                    <li key={type}>{type}: {qty as number}</li>
                   ))
                 ) : (
                   <p className="text-gray-400">No stock available</p>

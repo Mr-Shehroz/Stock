@@ -4,180 +4,144 @@ import Image from "next/image";
 import Link from "next/link";
 
 // Define Stock Type
-type StockType = {
-  bags: number;
-  packets: number;
-  cartons: number;
+const initialStock = {
+  bags: 0,
+  packets: 0,
+  cartons: 0,
 };
 
-type StockOption = keyof StockType;
+const products = [
+  { id: 1, name: "Product 1", image: "/product1.jpg" },
+  { id: 2, name: "Product 2", image: "/product2.jpeg" },
+  { id: 3, name: "Product 3", image: "/product3.png" },
+  { id: 4, name: "Product 4", image: "/product4.jpeg" },
+  { id: 5, name: "Product 5", image: "/product5.webp" },
+];
 
-// Define History Type
-type StockHistory = {
-  id: number;
-  quantity: number;
-  type: StockOption;
-  note: string;
-  action: "import" | "export";
-  timestamp: string;
-};
+export default function ProductPage() {
+  const [stocks, setStocks] = useState(
+    () => JSON.parse(localStorage.getItem("stocks") || "{}") || {}
+  );
+  const [history, setHistory] = useState(
+    () => JSON.parse(localStorage.getItem("history") || "[]") || []
+  );
+  const [inputValues, setInputValues] = useState<{ [key: number]: string }>({});
+  const [selectedOptions, setSelectedOptions] = useState<{ [key: number]: string }>({});
+  const [notes, setNotes] = useState<{ [key: number]: string }>({});
+  const [error, setError] = useState<{ [key: number]: string }>({});
 
-export default function Product() {
-  const [stock, setStock] = useState<StockType>({
-    bags: 0,
-    packets: 0,
-    cartons: 0,
-  });
-  const [inputValue, setInputValue] = useState("");
-  const [selectedOption, setSelectedOption] = useState<StockOption>("bags");
-  const [history, setHistory] = useState<StockHistory[]>([]);
-  const [note, setNote] = useState("");
-
-  // Load data from localStorage when the component mounts
   useEffect(() => {
-    const storedStock = localStorage.getItem("stock");
-    const storedHistory = localStorage.getItem("history");
-    if (storedStock) {
-      setStock(JSON.parse(storedStock));
-      console.log("Loaded stock from localStorage:", JSON.parse(storedStock));
-    }
-    if (storedHistory) {
-      setHistory(JSON.parse(storedHistory));
-      console.log("Loaded history from localStorage:", JSON.parse(storedHistory));
-    }
-  }, []);
-
-  // Save stock and history to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem("stock", JSON.stringify(stock));
+    localStorage.setItem("stocks", JSON.stringify(stocks));
     localStorage.setItem("history", JSON.stringify(history));
-    console.log("Saved stock to localStorage:", stock);
-    console.log("Saved history to localStorage:", history);
-  }, [stock, history]);
+  }, [stocks, history]);
 
-  // Function to import stock (add goods)
-  const handleImportStock = () => {
-    const quantity = Number(inputValue);
-    if (quantity > 0) {
-      const newEntry: StockHistory = {
-        id: history.length + 1,
-        quantity,
-        type: selectedOption,
-        note,
-        action: "import",
-        timestamp: new Date().toLocaleString(),
-      };
+  const handleStockChange = (productId: number, action: string) => {
+    const quantity = Number(inputValues[productId]) || 0;
+    if (quantity <= 0) return;
+    const type = selectedOptions[productId] || "bags";
 
-      setStock((prevStock) => ({
-        ...prevStock,
-        [selectedOption]: prevStock[selectedOption] + quantity,
-      }));
+    setStocks((prevStocks) => {
+      const newStocks = { ...prevStocks };
+      if (!newStocks[productId]) newStocks[productId] = { ...initialStock };
 
-      setHistory([newEntry, ...history]);
-      setInputValue("");
-      setNote("");
-    }
-  };
+      if (action === "import") {
+        newStocks[productId][type] += quantity;
+        setError((prev) => ({ ...prev, [productId]: "" }));
+      } else if (action === "export") {
+        if (newStocks[productId][type] < quantity) {
+          setError((prev) => ({ ...prev, [productId]: "Not enough stock!" }));
+          return prevStocks;
+        } else {
+          newStocks[productId][type] -= quantity;
+          setError((prev) => ({ ...prev, [productId]: "" }));
+        }
+      }
 
-  // Function to export stock (remove goods)
-  const handleExportStock = () => {
-    const quantity = Number(inputValue);
-    if (quantity > 0 && stock[selectedOption] >= quantity) {
-      const newEntry: StockHistory = {
-        id: history.length + 1,
-        quantity,
-        type: selectedOption,
-        note,
-        action: "export",
-        timestamp: new Date().toLocaleString(),
-      };
+      return newStocks;
+    });
 
-      setStock((prevStock) => ({
-        ...prevStock,
-        [selectedOption]: prevStock[selectedOption] - quantity,
-      }));
+    setHistory((prevHistory: { id: number; productId: number; quantity: number; type: string; note: string; action: string; timestamp: string }[]) => [
+      { id: prevHistory.length + 1, productId, quantity, type, note: notes[productId] || "", action, timestamp: new Date().toLocaleString() },
+      ...prevHistory,
+    ]);
 
-      setHistory([newEntry, ...history]);
-      setInputValue("");
-      setNote("");
-    }
+    setInputValues((prev) => ({ ...prev, [productId]: "" }));
+    setNotes((prev) => ({ ...prev, [productId]: "" }));
   };
 
   return (
-    <div className="flex flex-col md:flex-row justify-around items-center p-6 bg-gray-900 border border-gray-700 rounded-lg shadow-lg text-white transition-all duration-300">
-      {/* Image Section */}
-      <div className="p-6">
-        <Image src="/vercel.svg" width={100} height={100} alt="Product Image" />
-      </div>
-
-      {/* Product Details Section */}
-      <div className="p-6 flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-white">Product</h1>
-
-        {/* Input and Selection UI */}
-        <div className="flex flex-col gap-2">
-          <input
-            type="number"
-            min="1"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            className="px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-            placeholder="Enter quantity..."
-          />
-          <select
-            value={selectedOption}
-            onChange={(e) => setSelectedOption(e.target.value as StockOption)}
-            className="px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded-md transition-all duration-200"
-          >
-            <option value="bags">Bags</option>
-            <option value="packets">Packets</option>
-            <option value="cartons">Cartons</option>
-          </select>
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            className="px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-            placeholder="Enter notes (optional)..."
-          />
-          <div className="flex gap-4">
-            <button
-              onClick={handleImportStock}
-              disabled={!inputValue || Number(inputValue) <= 0}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md"
-            >
-              Import Goods
-            </button>
-            <button
-              onClick={handleExportStock}
-              disabled={!inputValue || Number(inputValue) <= 0 || stock[selectedOption] < Number(inputValue)}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md"
-            >
-              Export Goods
-            </button>
+    <div className="p-6 bg-gray-900 min-h-screen text-white">
+      <h1 className="text-3xl font-bold mb-6">Products</h1>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {products.map(({ id, name, image }) => (
+          <div key={id} className="p-6 border border-gray-700 rounded-lg bg-gray-800">
+            <Image src={image} width={100} height={100} alt={name} className="mx-auto" />
+            <h2 className="text-xl font-bold mt-4 text-center">{name}</h2>
+            <div className="mt-4">
+              <input
+                type="number"
+                min="1"
+                value={inputValues[id] || ""}
+                onChange={(e) => setInputValues({ ...inputValues, [id]: e.target.value })}
+                className="w-full p-2 bg-gray-700 text-white rounded-md"
+                placeholder="Enter quantity..."
+              />
+              <select
+                value={selectedOptions[id] || "bags"}
+                onChange={(e) => setSelectedOptions({ ...selectedOptions, [id]: e.target.value })}
+                className="w-full p-2 mt-2 bg-gray-700 text-white rounded-md"
+              >
+                <option value="bags">Bags</option>
+                <option value="packets">Packets</option>
+                <option value="cartons">Cartons</option>
+              </select>
+              <input
+                type="text"
+                value={notes[id] || ""}
+                onChange={(e) => setNotes({ ...notes, [id]: e.target.value })}
+                className="w-full p-2 mt-2 bg-gray-700 text-white rounded-md"
+                placeholder="Enter note (optional)..."
+              />
+              {error[id] && <p className="text-red-500 text-sm mt-2">{error[id]}</p>}
+              <div className="flex justify-between mt-4">
+                <button
+                  onClick={() => handleStockChange(id, "import")}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md"
+                >
+                  Import
+                </button>
+                <button
+                  onClick={() => handleStockChange(id, "export")}
+                  className={`px-4 py-2 text-white rounded-md ${
+                    stocks[id]?.[selectedOptions[id] || "bags"] > 0
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-gray-600 cursor-not-allowed"
+                  }`}
+                  disabled={stocks[id]?.[selectedOptions[id] || "bags"] <= 0}
+                >
+                  Export
+                </button>
+              </div>
+            </div>
+            <div className="mt-4">
+              <h3 className="text-lg font-semibold">Stock:</h3>
+              <ul>
+                {stocks[id] ? (
+                  Object.entries(stocks[id]).map(([type, qty]) => (
+                    <li key={type}>{type}: {qty}</li>
+                  ))
+                ) : (
+                  <p className="text-gray-400">No stock available</p>
+                )}
+              </ul>
+            </div>
           </div>
-        </div>
-
-        {/* Stock Display */}
-        <div className="text-xl font-semibold">
-          <h2 className="text-gray-300">Stock:</h2>
-          <ul className="list-disc pl-5">
-            {Object.entries(stock).map(([key, value]) =>
-              value > 0 ? (
-                <li key={key} className="capitalize text-white">
-                  {key}: {value}
-                </li>
-              ) : null
-            )}
-          </ul>
-        </div>
-
-        {/* History Link */}
-        <div className="mt-4">
-          <Link href="/history" className="text-blue-400 hover:underline">
-            View Stock History
-          </Link>
-        </div>
+        ))}
+      </div>
+      <div className="mt-6 text-center">
+        <Link href="/history" className="text-blue-400 hover:underline">
+          View Stock History
+        </Link>
       </div>
     </div>
   );
